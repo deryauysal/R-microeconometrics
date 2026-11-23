@@ -1,0 +1,85 @@
+# Censored Regression and Sample Selection {#sec-tobit}
+
+## Tobit model
+
+Many outcomes are zero for a part of the population and continuous and positive for the rest, for example expenditures or hours worked. The Tobit model [@tobin1958] writes
+$$
+y^* = x\beta + u, \quad u \mid x \sim N(0, \sigma^2), \qquad y = \max(0, y^*).
+$$
+It is estimated by maximum likelihood. The coefficients $\beta$ are the effects on the latent $y^*$. The partial effect on the observed outcome is
+$$
+\frac{\partial E(y \mid x)}{\partial x_j} = \beta_j \, \Phi(x\beta/\sigma),
+$$
+which is smaller in absolute value than $\beta_j$.
+
+### Example: Fringe benefits
+
+The data set `fringe` contains `r nrow(wooldridge::fringe)` workers [@wooldridge2020]. The outcome `hrbens` is hourly fringe benefits in dollars; `r round(100*mean(wooldridge::fringe$hrbens == 0), 1)` percent of the workers have none.
+
+We use `censReg()` from the package of the same name. In its output, `logSigma` is $\log\sigma$.
+
+```{r}
+data(fringe, package = "wooldridge")
+library(censReg)
+tobit <- censReg(hrbens ~ exper + age + educ + tenure + married + male + white +
+                   nrtheast + nrthcen + south + union, data = fringe)
+summary(tobit)
+```
+
+`margEff()` gives the partial effects on $E(y \mid x)$, evaluated at the sample means of the regressors.
+
+```{r}
+margEff(tobit)
+```
+
+The same model can be estimated with `survreg()` from the package `survival`, where the outcome is declared as left-censored at zero. The coefficients are identical; `Log(scale)` is $\log\sigma$.
+
+```{r}
+library(survival)
+tobitx <- survreg(Surv(hrbens, hrbens > 0, type = "left") ~ exper + age + educ + tenure +
+                    married + male + white + nrtheast + nrthcen + south + union,
+                  data = fringe, dist = "gaussian")
+summary(tobitx)
+```
+
+## Heckman selection model
+
+In the selection model [@heckman1979], the outcome is observed only for a selected part of the sample:
+$$
+\begin{aligned}
+d &= 1[z\gamma + v > 0] && \text{(selection equation)}\\
+y &= x\beta + u, \ \text{ observed only if } d = 1 && \text{(outcome equation)}
+\end{aligned}
+$$
+with $(u, v)$ jointly normal and $\text{Corr}(u, v) = \rho$. If $\rho \ne 0$, OLS on the selected sample is inconsistent, because
+$$
+E(y \mid x, d = 1) = x\beta + \rho\sigma_u \, \lambda(z\gamma),
+$$
+where $\lambda(\cdot) = \phi(\cdot)/\Phi(\cdot)$ is the inverse Mills ratio. The **two-step estimator** first estimates $\gamma$ by probit, then regresses $y$ on $x$ and $\lambda(z\hat\gamma)$ by OLS in the selected sample. The coefficient on $\lambda$ estimates $\rho\sigma_u$; its $t$ test is a test of selection bias.
+
+### Example: Ambulatory expenditures
+
+We use the data on ambulatory medical expenditures (`ambexp`) from @cameron2010. Expenditures are observed for those with positive spending; the outcome equation is for log expenditures. Save `mus16data.dta` in your working directory first.
+
+```{r}
+library(haven)
+mus16data <- read_dta("mus16data.dta")
+
+mus16data$dy  <- as.numeric(mus16data$ambexp > 0)       # selection indicator
+mus16data$lny <- ifelse(mus16data$ambexp > 0, log(mus16data$ambexp), NA)
+table(mus16data$dy)
+```
+
+Regressors are age, gender, years of education, a dummy for Black or Hispanic (`blhisp`) and the number of chronic diseases (`totchr`). We estimate the model with `selection()` from the package `sampleSelection`.
+
+```{r}
+library(sampleSelection)
+heckman <- selection(dy  ~ age + female + educ + blhisp + totchr,
+                     lny ~ age + female + educ + blhisp + totchr,
+                     data = mus16data, method = "2step")
+summary(heckman)
+```
+
+The coefficient on the inverse Mills ratio (`invMillsRatio`) is `r round(coef(heckman)["invMillsRatio"], 3)` and not significant at conventional levels, so these data show no clear evidence of selection bias.
+
+Note that both equations here contain the same regressors. The model is then identified only through the nonlinearity of $\lambda(\cdot)$, which often makes the two-step estimates imprecise. In applications one should have at least one variable in the selection equation that is excluded from the outcome equation. With `method = "ml"`, `selection()` estimates the model by maximum likelihood instead.

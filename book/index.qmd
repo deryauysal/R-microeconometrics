@@ -1,0 +1,25 @@
+# Preface {.unnumbered}
+
+These notes show how to estimate the standard microeconometric models in R. Each chapter gives a short description of the model, the R code, and the output, with a few comments on how to read it. The notes accompany the Microeconometrics course at LMU Munich. They do not replace a textbook; for the theory see the references at the end.
+
+| Chapter | Models | Data |
+|---|---|---|
+| 1 | Linear probability, logit, probit | `mroz`, `bwght` |
+| 2 | Multinomial, conditional and nested logit; multinomial probit | `Fishing`, `HC` |
+| 3 | Ordered probit and logit | `pension` |
+| 4 | Poisson, negative binomial, hurdle, zero-inflated Poisson | `fertil2`, `smoke` |
+| 5 | Tobit and Heckman selection model | `fringe`, `mus16data` |
+
+## Setup {.unnumbered}
+
+Install the packages once:
+
+```r
+install.packages(c("wooldridge", "car", "lmtest", "DescTools", "mlogit", "rms",
+                   "pastecs", "MASS", "pscl", "VGAM", "censReg", "survival",
+                   "haven", "sampleSelection"))
+```
+
+Most data sets come with the R packages `wooldridge` [@wooldridge2020] and `mlogit` [@croissant2020]. The Heckman example in Chapter 5 uses `mus16data.dta` from @cameron2010, which is not included here. Download it from the book's website and save it in your working directory.
+
+The same code is also available as plain R scripts in the [GitHub repository](https://github.com/deryauysal/R-microeconometrics).

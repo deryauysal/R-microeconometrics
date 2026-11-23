@@ -5,6 +5,7 @@
 # install.packages(c("wooldridge", "pastecs", "MASS", "pscl", "VGAM"))
 
 data(smoke, package='wooldridge')  # Data on the number of cigarettes smoked per day.
+smoke$agesq <- smoke$age^2/100  # age squared divided by 100 (avoids numerical problems in hurdle and ZIP)
 library(pastecs) #to calculate descriptive statistics
 
 stat.desc(smoke$cigs)
@@ -14,7 +15,7 @@ dens <- density(smoke$cigs)
 plot(dens, frame = FALSE, col = "blue", main = "Density plot of cigarettes consumption") 
 
 #Poisson Regression
-poissonreg <- glm (cigs~log(cigpric)+log(income)+restaurn+white+educ+age+I(age^2), data=smoke, family=poisson)
+poissonreg <- glm (cigs~log(cigpric)+log(income)+restaurn+white+educ+age+agesq, data=smoke, family=poisson)
 summary(poissonreg)
 
 poissonpredict<-predict(poissonreg, smoke, type="response") 
@@ -28,7 +29,7 @@ barplot(colMeans(trial), col = "blue", main = "Average predicted probabilities f
 
 #NEGBIN (Negative Binomial) Regression
 library(MASS) #to run negbin regression 
-negbinreg <- glm (cigs~log(cigpric)+log(income)+restaurn+white+educ+age+I(age^2), data=smoke, family = negative.binomial(theta =1) )
+negbinreg <- glm (cigs~log(cigpric)+log(income)+restaurn+white+educ+age+agesq, data=smoke, family = negative.binomial(theta =1) )
 summary(negbinreg)
 
 negbinpredict<-predict(negbinreg, smoke, type="response") 
@@ -40,13 +41,13 @@ plot(dens2, frame = FALSE, col = "blue", main = "Predicted density plot of cigar
 # Estimate theta as well. MASS::glm.nb does not converge for these data
 # (theta drifts to infinity), so we use VGAM::vglm with the negbinomial family.
 library(VGAM)
-negbinreg1 <- vglm(cigs~log(cigpric)+log(income)+restaurn+white+educ+age+I(age^2), negbinomial, data=smoke)
+negbinreg1 <- vglm(cigs~log(cigpric)+log(income)+restaurn+white+educ+age+agesq, negbinomial, data=smoke)
 summary(negbinreg1)
 exp(coef(negbinreg1)[["(Intercept):2"]])  # theta (size parameter)
 
 #Count Data Hurdle Model
 library(pscl) #to run Hurdle and ZIP model
-hurdlereg <- hurdle(cigs~log(cigpric)+log(income)+restaurn+white+educ+age+I(age^2), data=smoke,
+hurdlereg <- hurdle(cigs~log(cigpric)+log(income)+restaurn+white+educ+age+agesq, data=smoke,
        dist = "poisson", zero.dist = "binomial", link = "logit")
 summary(hurdlereg)
 
@@ -57,7 +58,7 @@ dens3 <- density(hurdlepredict)
 plot(dens3, frame = FALSE, col = "blue", main = "Predicted density plot of cigarettes consumption from hurdle") 
 
 #ZIP (Zero-Inflated Poisson) Model
-ZIP <- zeroinfl(cigs~log(cigpric)+log(income)+restaurn+white+educ+age+I(age^2), data=smoke,
+ZIP <- zeroinfl(cigs~log(cigpric)+log(income)+restaurn+white+educ+age+agesq, data=smoke,
          dist = "poisson", link = "logit")
 summary(ZIP)
 

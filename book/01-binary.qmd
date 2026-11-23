@@ -1,0 +1,185 @@
+# Binary Response Models {#sec-binary}
+
+The outcome $y$ takes the values 0 and 1, and we model the response probability
+$$
+P(y = 1 \mid x) = G(x\beta).
+$$
+The three standard choices for $G$ are
+
+- **Linear probability model (LPM):** $G(z) = z$. Estimated by OLS.
+- **Logit:** $G(z) = \Lambda(z) = \exp(z)/(1+\exp(z))$, the logistic CDF.
+- **Probit:** $G(z) = \Phi(z)$, the standard normal CDF.
+
+Logit and probit are estimated by maximum likelihood. Their fitted probabilities always lie between 0 and 1; the LPM's need not.
+
+## Example: Labor force participation of married women
+
+The data set `mroz` contains `r nrow(wooldridge::mroz)` married women. The outcome `inlf` equals 1 if the woman was in the labor force in 1975. Regressors are other household income (`nwifeinc`, in \$1000), years of education, experience and its square, age, and the number of children younger than 6 and between 6 and 18.
+
+```{r}
+data(mroz, package = "wooldridge")
+library(car); library(lmtest)
+```
+
+### Linear probability model
+
+In the LPM the error is heteroskedastic by construction, since $\text{Var}(y \mid x) = x\beta(1-x\beta)$. We therefore use heteroskedasticity-robust standard errors (`vcov = hccm`).
+
+```{r}
+linprob <- lm(inlf ~ nwifeinc + educ + exper + I(exper^2) + age + kidslt6 + kidsge6,
+              data = mroz)
+coeftest(linprob, vcov = hccm)
+```
+
+Each coefficient is the change in the participation probability for a one-unit change in the regressor. For example, one more young child lowers the probability by about `r round(-100*coef(linprob)["kidslt6"])` percentage points, holding the other variables fixed.
+
+### Logit
+
+```{r}
+logitres <- glm(inlf ~ nwifeinc + educ + exper + I(exper^2) + age + kidslt6 + kidsge6,
+                family = binomial(link = logit), data = mroz)
+summary(logitres)
+logLik(logitres)
+```
+
+The logit coefficients are not partial effects on the probability; only their signs and relative sizes can be read directly. A common transformation is the **odds ratio** $\exp(\beta_j)$: the factor by which the odds $P/(1-P)$ change when $x_j$ increases by one unit.
+
+```{r}
+exp(coef(logitres))
+```
+
+**Pseudo $R^2$.** McFadden's measure is $1 - \ell_{ur}/\ell_0$, where $\ell_0$ is the log likelihood of a model with only an intercept. For binary outcomes it equals one minus the ratio of the residual to the null deviance. `DescTools` reports several other versions.
+
+```{r}
+1 - logitres$deviance / logitres$null.deviance
+library(DescTools)
+PseudoR2(logitres, which = "all")
+```
+
+### Probit
+
+```{r}
+probitres <- glm(inlf ~ nwifeinc + educ + exper + I(exper^2) + age + kidslt6 + kidsge6,
+                 family = binomial(link = probit), data = mroz)
+summary(probitres)
+logLik(probitres)
+1 - probitres$deviance / probitres$null.deviance
+```
+
+Logit coefficients are roughly 1.6 times the probit coefficients because the logistic distribution has a larger variance. The two models usually give very similar probabilities and partial effects.
+
+### Likelihood ratio tests
+
+The LR statistic is $LR = 2(\ell_{ur} - \ell_r)$, which is asymptotically $\chi^2_q$ under $H_0$, with $q$ the number of restrictions. For the test that all slope coefficients are zero, $\ell_r = \ell_0$ and the statistic equals the null deviance minus the residual deviance.
+
+```{r}
+probitres$null.deviance - probitres$deviance
+lrtest(probitres)
+```
+
+Next we test $H_0$: experience and age do not matter ($q = 3$, since experience enters with its square).
+
+```{r}
+restr <- glm(inlf ~ nwifeinc + educ + kidslt6 + kidsge6,
+             family = binomial(link = probit), data = mroz)
+lrtest(restr, probitres)
+```
+
+### Predicted probabilities
+
+With `type = "response"`, `predict()` returns probabilities. Consider two "extreme" women: the first has low education, no experience, is 20 years old and has two young children; the second has 17 years of education, 30 years of experience, is 52 and has no children.
+
+```{r}
+xpred <- list(nwifeinc = c(100, 0), educ = c(5, 17), exper = c(0, 30),
+              age = c(20, 52), kidslt6 = c(2, 0), kidsge6 = c(0, 0))
+rbind(LPM    = predict(linprob,   xpred, type = "response"),
+      logit  = predict(logitres,  xpred, type = "response"),
+      probit = predict(probitres, xpred, type = "response"))
+```
+
+The LPM predicts probabilities of `r round(predict(linprob, xpred)[1], 2)` and `r round(predict(linprob, xpred)[2], 2)`, outside the unit interval. Logit and probit predictions stay between 0 and 1.
+
+### Average partial effects
+
+For a continuous regressor, the partial effect in logit and probit is
+$$
+\frac{\partial P(y=1 \mid x)}{\partial x_j} = g(x\beta)\,\beta_j,
+$$
+where $g$ is the density ($\phi$ for probit, $\lambda$ for logit). It depends on $x$. The **average partial effect (APE)** averages it over the sample: $\widehat{APE}_j = \hat\beta_j \cdot n^{-1}\sum_i g(x_i\hat\beta)$. These APEs are comparable to the LPM coefficients.
+
+```{r}
+xb.log  <- predict(logitres)    # linear index x'b
+xb.prob <- predict(probitres)
+
+factor.log  <- mean(dlogis(xb.log))
+factor.prob <- mean(dnorm(xb.prob))
+cbind(factor.log, factor.prob)
+
+APE.lin  <- coef(linprob) * 1
+APE.log  <- coef(logitres) * factor.log
+APE.prob <- coef(probitres) * factor.prob
+round(cbind(APE.lin, APE.log, APE.prob), 4)
+```
+
+Ignore the row for the intercept. Note that for `exper`, which enters with a square, the formula $\hat\beta_j \cdot \text{factor}$ is not the APE of experience; the APE then needs the derivative of the whole index. The same holds for discrete regressors such as `kidslt6`, where the exact APE is the average difference in predicted probabilities. The simple scale factor gives a good approximation in practice.
+
+### The three models in a picture
+
+To see how the three models fit, we simulate data from a probit model: $y = 1$ if $1 + 3x + e > 2$, with $x, e \sim N(0,1)$.
+
+```{r}
+#| label: fig-binary-sim
+#| fig-cap: "Fitted probabilities of the LPM, logit and probit for simulated data."
+set.seed(28052020)
+x <- rnorm(1000, 0, 1)
+e <- rnorm(1000, 0, 1)
+y <- ifelse(1 + 3*x + e > 2, 1, 0)
+
+linear <- lm(y ~ x)
+logit  <- glm(y ~ x, family = binomial(link = logit))
+probit <- glm(y ~ x, family = binomial(link = probit))
+
+xp <- seq(from = min(x), to = max(x), length = 1000)
+plot(x, y)
+lines(xp, predict(linear, list(x = xp), type = "response"), col = 2, lwd = 1)
+lines(xp, predict(logit,  list(x = xp), type = "response"), col = 3, lwd = 2, lty = 2)
+lines(xp, predict(probit, list(x = xp), type = "response"), col = 4, lwd = 1)
+legend("topleft", c("LPM", "Logit", "Probit"), col = 2:4, lwd = c(1, 2, 1), lty = c(1, 2, 1))
+```
+
+The logit and probit curves are almost identical. The LPM line goes below 0 and above 1 at the ends.
+
+## Second example: Smoking during pregnancy
+
+The data set `bwght` contains `r nrow(wooldridge::bwght)` births. We define `smoke = 1` if the mother smoked during pregnancy and relate it to the mother's education, race and log family income. The steps are the same as above.
+
+```{r}
+data(bwght, package = "wooldridge")
+bwght$smoke <- ifelse(bwght$cigs > 0, 1, 0)
+
+linprob2   <- lm(smoke ~ motheduc + white + log(faminc), data = bwght)
+logitres2  <- glm(smoke ~ motheduc + white + log(faminc),
+                  family = binomial(link = logit), data = bwght)
+probitres2 <- glm(smoke ~ motheduc + white + log(faminc),
+                  family = binomial(link = probit), data = bwght)
+
+coeftest(linprob2, vcov = hccm)
+summary(probitres2)
+```
+
+Test of $H_0$: race does not matter.
+
+```{r}
+restr2 <- glm(smoke ~ motheduc + log(faminc), family = binomial(link = probit),
+              data = bwght)
+lrtest(restr2, probitres2)
+```
+
+Average partial effects:
+
+```{r}
+f.log  <- mean(dlogis(predict(logitres2)))
+f.prob <- mean(dnorm(predict(probitres2)))
+round(cbind(LPM = coef(linprob2), logit = coef(logitres2) * f.log,
+            probit = coef(probitres2) * f.prob), 4)
+```

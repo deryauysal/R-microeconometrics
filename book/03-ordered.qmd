@@ -1,0 +1,55 @@
+# Ordered Response Models {#sec-ordered}
+
+When the alternatives have a natural order, we use a latent variable model:
+$$
+y^* = x\beta + e, \qquad y = j \ \text{ if } \ \alpha_{j-1} < y^* \le \alpha_j, \quad j = 0, 1, \dots, J,
+$$
+with cut points $\alpha_{-1} = -\infty < \alpha_0 < \dots < \alpha_J = \infty$. With $e \sim N(0,1)$ this is the **ordered probit**, with a logistic $e$ the **ordered logit**. Then
+$$
+P(y = j \mid x) = G(\alpha_j - x\beta) - G(\alpha_{j-1} - x\beta).
+$$
+A positive $\beta_k$ shifts probability mass to higher categories: it lowers the probability of the lowest and raises the probability of the highest category. For the categories in between, the sign of the effect is not determined by the sign of $\beta_k$.
+
+## Example: Asset allocation in pension plans
+
+The data set `pension` contains `r nrow(wooldridge::pension)` workers and the asset allocation of their pension funds [@wooldridge2020]. The outcome `pctstck` is 0 (mostly bonds), 50 (mixed) or 100 (mostly stocks).
+
+```{r}
+data(pension, package = "wooldridge")
+table(pension$pctstck)
+```
+
+Regressors include whether the worker can choose the allocation (`choice`), gender, race, whether the plan is a profit-sharing plan (`prftshr`), age, education, wealth in 1989 and dummies for family income classes.
+
+We use `orm()` from the package `rms`. Note its sign convention: `orm()` models $P(y \ge j \mid x) = G(\alpha_j + x\beta)$, so the reported intercepts are the negative cut points, while the slope coefficients have the usual meaning.
+
+```{r}
+library(rms)
+ddist <- datadist("choice", "prftshr", "finc25", "finc35", "finc50", "finc75",
+                  "finc100", "finc101", "female", "black", "age", "educ", "wealth89")
+options(datadist = "ddist")
+```
+
+### Ordered probit
+
+```{r}
+oprobit <- orm(pctstck ~ choice + female + black + prftshr + age + educ + wealth89 +
+                 finc25 + finc35 + finc50 + finc75 + finc100 + finc101,
+               data = pension, family = probit)
+oprobit
+c(AIC = AIC(oprobit), BIC = BIC(oprobit))
+```
+
+### Ordered logit
+
+The logistic distribution is the default in `orm()`.
+
+```{r}
+ologit <- orm(pctstck ~ choice + female + black + prftshr + age + educ + wealth89 +
+                finc25 + finc35 + finc50 + finc75 + finc100 + finc101,
+              data = pension)
+ologit
+c(AIC = AIC(ologit), BIC = BIC(ologit))
+```
+
+As in the binary case, the logit coefficients are larger than the probit coefficients because of the different scale of the error, while the signs and significance are similar. The information criteria help to choose between the two models; smaller values are better.

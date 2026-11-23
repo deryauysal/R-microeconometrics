@@ -1,0 +1,40 @@
+project:
+  type: book
+  output-dir: ../docs
+
+book:
+  title: "R for Microeconometrics"
+  subtitle: "Short notes with code for standard microeconometric models"
+  author: "S. Derya Uysal"
+  date: "2026"
+  repo-url: https://github.com/deryauysal/R-microeconometrics
+  repo-subdir: book
+  chapters:
+    - index.qmd
+    - 01-binary.qmd
+    - 02-multinomial.qmd
+    - 03-ordered.qmd
+    - 04-count.qmd
+    - 05-censored-selection.qmd
+    - references.qmd
+
+bibliography: references.bib
+
+format:
+  html:
+    theme: cosmo
+    code-copy: true
+    code-overflow: wrap
+    toc-depth: 3
+    number-sections: true
+
+execute:
+  warning: false
+  message: false
+
+knitr:
+  opts_chunk:
+    comment: "#>"
+    fig.width: 6.5
+    fig.height: 4.2
+    fig.align: center

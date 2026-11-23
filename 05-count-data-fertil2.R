@@ -5,6 +5,7 @@
 # install.packages(c("wooldridge", "pastecs", "MASS", "pscl", "VGAM"))
 
 data(fertil2, package='wooldridge')  # Data on the number of children ever born.
+fertil2$agesq <- fertil2$age^2/100  # age squared divided by 100 (avoids numerical problems in hurdle and ZIP)
 library(pastecs) #to calculate descriptive statistics
 library(VGAM)
 
@@ -15,7 +16,7 @@ dens <- density(fertil2$children)
 plot(dens, frame = FALSE, col = "blue", main = "Density plot of the number of children") 
 
 # A. Poisson Regression
-poissonreg <- glm (children~tv+electric+evermarr+urban+educ+age+I(age^2), data=fertil2, family=poisson)
+poissonreg <- glm (children~tv+electric+evermarr+urban+educ+age+agesq, data=fertil2, family=poisson)
 summary(poissonreg)
 
 #to see fitted values in a histagrom
@@ -30,7 +31,7 @@ head(poissonpredict)
 
 # B. NEGBIN (Negative Binomial) Regression
 library(MASS) #to run negbin regression 
-negbinreg <- glm (children~tv+electric+evermarr+urban+educ+age+I(age^2), data=fertil2, family = negative.binomial(theta =1) )
+negbinreg <- glm (children~tv+electric+evermarr+urban+educ+age+agesq, data=fertil2, family = negative.binomial(theta =1) )
 summary(negbinreg)
 
 hist(negbinreg$fitted.values)
@@ -42,7 +43,7 @@ head(negbinpredict)
 
 #another method to run negbin regression and see theta
 library(MASS) 
-negbinreg1 <- glm.nb (children~tv+electric+evermarr+urban+educ+age+I(age^2), data=fertil2 )
+negbinreg1 <- glm.nb (children~tv+electric+evermarr+urban+educ+age+agesq, data=fertil2 )
 summary(negbinreg1)
 negbinreg1$theta
 # A very large theta means there is no overdispersion: the negative binomial
@@ -50,7 +51,7 @@ negbinreg1$theta
 
 # C.Count Data Hurdle Model
 library(pscl) #to run Hurdle and ZIP model
-hurdlereg <- hurdle(children~tv+electric+evermarr+urban+educ+age+I(age^2), data=fertil2,
+hurdlereg <- hurdle(children~tv+electric+evermarr+urban+educ+age+agesq, data=fertil2,
                     dist = "poisson", zero.dist = "binomial", link = "logit")
 summary(hurdlereg)
 
@@ -62,7 +63,7 @@ hist(hurdlepredict)
 head(hurdlepredict)
 
 # D.ZIP (Zero-Inflated Poisson) Model
-ZIP <- zeroinfl(children~tv+electric+evermarr+urban+educ+age+I(age^2), data=fertil2,
+ZIP <- zeroinfl(children~tv+electric+evermarr+urban+educ+age+agesq, data=fertil2,
                 dist = "poisson", link = "logit")
 summary(ZIP)
 

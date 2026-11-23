@@ -1,0 +1,121 @@
+# Multinomial Response Models {#sec-multinomial}
+
+Now the outcome is one of $J$ unordered alternatives, $y \in \{1, \dots, J\}$. The models differ in the type of regressors:
+
+- **Individual-specific regressors** $x_i$ (for example income) are the same for all alternatives. Their coefficients $\gamma_j$ differ across alternatives, and one alternative serves as the base with $\gamma_{\text{base}} = 0$. This is the **multinomial logit**:
+$$
+P(y_i = j \mid x_i) = \frac{\exp(x_i\gamma_j)}{\sum_{k=1}^J \exp(x_i\gamma_k)}.
+$$
+- **Alternative-specific regressors** $z_{ij}$ (for example the price of each alternative) vary across alternatives, with a common coefficient $\beta$. This is the **conditional logit**:
+$$
+P(y_i = j \mid z_i) = \frac{\exp(z_{ij}\beta)}{\sum_{k=1}^J \exp(z_{ik}\beta)}.
+$$
+- Both types can enter the same model, with index $z_{ij}\beta + x_i\gamma_j$.
+
+All logit models above have the **independence of irrelevant alternatives (IIA)** property: the ratio $P(y=j)/P(y=k)$ does not depend on the other alternatives. Nested logit and multinomial probit relax it.
+
+We use the package `mlogit` [@croissant2020]. In its formula `y ~ z | x | w`, the first part holds alternative-specific regressors with a common coefficient, the second part individual-specific regressors, and the third alternative-specific regressors with alternative-specific coefficients. A `0` in the second part removes the alternative-specific intercepts.
+
+## Example: Choice of fishing mode
+
+The data set `Fishing` contains the choice of fishing mode (beach, pier, private boat, charter boat) of `r nrow(mlogit::Fishing)` anglers [see also @cameron2005]. For each mode we observe its price and catch rate; income is individual-specific. `mlogit` needs the data in "long" format, with one row per individual and alternative.
+
+```{r}
+data("Fishing", package = "mlogit")
+library(mlogit)
+table(Fishing$mode)
+mFishing <- dfidx(Fishing, choice = "mode", varying = 2:9)
+head(mFishing, 4)
+```
+
+### Multinomial logit
+
+Only income, with private boat as the base alternative.
+
+```{r}
+multi <- mlogit(mode ~ 0 | income, mFishing, reflevel = "boat")
+summary(multi)
+```
+
+Each coefficient refers to the comparison with the base: a positive income coefficient for an alternative means that higher income makes that alternative more likely relative to the private boat.
+
+### Conditional logit
+
+Only price and catch rate. The first model includes alternative-specific intercepts, the second does not.
+
+```{r}
+condi <- mlogit(mode ~ catch + price, mFishing)
+summary(condi)
+
+condix <- mlogit(mode ~ catch + price | 0, mFishing)
+summary(condix)
+```
+
+The coefficients have the expected signs: a higher price lowers, and a higher catch rate raises, the probability of choosing an alternative.
+
+### Both types of regressors
+
+```{r}
+mix <- mlogit(mode ~ catch + price | income, mFishing, reflevel = "boat")
+summary(mix)
+```
+
+This combined model is sometimes also called a "mixed" model. It should not be confused with the mixed logit model with random coefficients [@train2009].
+
+### Tests
+
+The three classical tests can compare nested models. Here we test the combined model against the conditional logit without intercepts (LR test), and against the multinomial logit (Wald and score tests).
+
+```{r}
+library(lmtest)
+lrtest(mix, condix)
+waldtest(mix, multi)
+scoretest(multi, mix)
+```
+
+## Nested logit: Heating and cooling systems
+
+The nested logit groups alternatives into nests. IIA holds within a nest but not across nests. The data set `HC` contains the choice of heating and cooling system of `r nrow(mlogit::HC)` newly built houses in California [@croissant2020]. There are seven alternatives: four with central cooling (`gcc`, `ecc`, `erc`, `hpc`) and three without (`gc`, `ec`, `er`). Regressors are installation and operating costs of the heating (`ich`, `och`) and cooling (`icca`, `occa`) systems, and income. The code follows the example in the `mlogit` documentation.
+
+```{r}
+data("HC", package = "mlogit")
+HC <- dfidx(HC, varying = c(2:8, 10:16), choice = "depvar")
+cooling.modes <- idx(HC, 2) %in% c("gcc", "ecc", "erc", "hpc")
+room.modes    <- idx(HC, 2) %in% c("erc", "er")
+
+# cooling costs are zero for alternatives without cooling
+HC$icca[!cooling.modes] <- 0
+HC$occa[!cooling.modes] <- 0
+
+# income for room-system and cooling alternatives, and a cooling intercept
+HC$inc.cooling <- HC$inc.room <- 0
+HC$inc.cooling[cooling.modes] <- HC$income[cooling.modes]
+HC$inc.room[room.modes]       <- HC$income[room.modes]
+HC$int.cooling <- as.numeric(cooling.modes)
+
+nested <- mlogit(depvar ~ ich + och + icca + occa + inc.room + inc.cooling + int.cooling | 0,
+                 HC, nests = list(cooling = c("gcc", "ecc", "erc", "hpc"),
+                                  other   = c("gc", "ec", "er")),
+                 un.nest.el = TRUE)
+summary(nested)
+```
+
+The parameter `iv` is the dissimilarity (inclusive value) parameter, here restricted to be the same in both nests (`un.nest.el = TRUE`). If it equals 1, the nested logit reduces to the conditional logit. Values between 0 and 1 are consistent with random utility maximization.
+
+## Multinomial probit
+
+The multinomial probit assumes jointly normal errors that can be correlated across alternatives, so it does not impose IIA. The choice probabilities are multivariate normal integrals, which `mlogit` computes by simulation. These models take some time to estimate.
+
+```{r}
+#| cache: true
+pmulti <- mlogit(mode ~ 0 | income, mFishing, reflevel = "boat", probit = TRUE)
+summary(pmulti)
+
+pcondix <- mlogit(mode ~ catch + price | 0, mFishing, probit = TRUE)
+summary(pcondix)
+
+pmix <- mlogit(mode ~ catch + price | income, mFishing, reflevel = "boat", probit = TRUE)
+summary(pmix)
+```
+
+The output also reports the estimated elements of the Cholesky factor of the error covariance matrix (the rows starting with the names of two alternatives).

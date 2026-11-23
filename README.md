@@ -2,6 +2,8 @@
 
 R code for the standard microeconometric models covered in the Microeconometrics course by S. Derya Uysal (LMU Munich).
 
+**Book:** a short online book with explanations, code and output for all models is at <https://deryauysal.github.io/R-microeconometrics/>. Its source is in `book/` (Quarto); the rendered pages are in `docs/`.
+
 | Script | Topic | Data |
 |---|---|---|
 | `01-binary-response-mroz.R` | Linear probability, logit and probit models | `mroz` (wooldridge) |
@@ -23,6 +25,10 @@ install.packages(c("wooldridge", "car", "lmtest", "DescTools"))
 and then run the script in R or RStudio.
 
 Most data sets come with the R packages `wooldridge` and `mlogit`. The Heckman example in script 07 uses `mus16data.dta` from Cameron and Trivedi, *Microeconometrics Using Stata*. This file is not included here; download it from the book's website and put it in your working directory.
+
+## Rebuilding the book
+
+Install [Quarto](https://quarto.org), put `mus16data.dta` into `book/`, and run `quarto render` in `book/`. The output goes to `docs/`.
 
 ## License
 
