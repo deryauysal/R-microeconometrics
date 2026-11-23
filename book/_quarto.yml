@@ -6,7 +6,8 @@ book:
   title: "R for Microeconometrics"
   subtitle: "Short notes with code for standard microeconometric models"
   author: "S. Derya Uysal"
-  date: "2026"
+  date: "2026-11-23"
+  date-format: "MMMM YYYY"
   repo-url: https://github.com/deryauysal/R-microeconometrics
   repo-subdir: book
   chapters:
